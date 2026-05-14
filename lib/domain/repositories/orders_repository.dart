@@ -1,6 +1,11 @@
 import '../entities/order_entity.dart';
 
 abstract class OrdersRepository {
-  /// Uses `GET /orders` when available on the API; otherwise returns an empty list.
-  Future<List<OrderEntity>> fetchMyOrders(String accessToken);
+  Future<List<OrderEntity>> fetchMyOrders(String accessToken, {int limit = 100, int offset = 0});
+
+  Future<OrderEntity> placeOrder(
+    String accessToken, {
+    required double totalAmountLak,
+    String paymentReceiptUrl = '',
+  });
 }

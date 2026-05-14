@@ -11,4 +11,7 @@ class CatalogRepositoryImpl implements CatalogRepository {
   Future<List<ProductEntity>> fetchProducts({int limit = 100, int offset = 0}) {
     return _api.fetchProducts(limit: limit, offset: offset);
   }
+
+  @override
+  Future<ProductEntity> fetchProductById(int id) => _api.fetchProductById(id);
 }

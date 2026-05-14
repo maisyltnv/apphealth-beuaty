@@ -23,6 +23,7 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider<ApiService>.value(value: api),
         ChangeNotifierProvider.value(value: auth),
         ChangeNotifierProvider(
           create: (_) => CatalogProvider(catalogRepo)..load(),

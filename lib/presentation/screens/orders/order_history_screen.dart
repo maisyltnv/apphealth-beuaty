@@ -46,6 +46,31 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       );
     }
 
+    if (orders.error != null && orders.orders.isEmpty && !orders.isLoading) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 48),
+          Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+          const SizedBox(height: 12),
+          Text(
+            orders.error!,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: FilledButton.icon(
+              onPressed: () => context.read<OrdersProvider>().load(auth.token),
+              icon: const Icon(Icons.refresh),
+              label: const Text('ລອງໃໝ່'),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (orders.isLoading && orders.orders.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -61,7 +86,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
             Icon(Icons.receipt_long, size: 48, color: Theme.of(context).colorScheme.outline),
             const SizedBox(height: 12),
             Text(
-              'ຍັງບໍ່ມີຄຳສັ່ງຊື້ — ຫຼື API ຍັງບໍ່ມີ GET /orders',
+              'ຍັງບໍ່ມີຄຳສັ່ງຊື້',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge,
             ),

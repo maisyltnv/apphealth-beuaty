@@ -5,6 +5,7 @@ import '../../../core/utils/lak_currency_formatter.dart';
 import '../../../domain/entities/product_entity.dart';
 import '../../providers/catalog_provider.dart';
 import '../scan/qr_scan_screen.dart';
+import 'product_detail_screen.dart';
 
 /// Store home: horizontal categories and a vertical product grid fed by the Go API.
 class HomeScreen extends StatelessWidget {
@@ -126,7 +127,16 @@ class _ProductCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () {},
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ProductDetailScreen(
+                productId: product.id,
+                initial: product,
+              ),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Column(

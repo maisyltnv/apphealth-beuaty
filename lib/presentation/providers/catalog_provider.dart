@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../data/datasources/remote/api_service.dart';
 import '../../domain/entities/product_entity.dart';
 import '../../domain/repositories/catalog_repository.dart';
 
@@ -47,10 +48,18 @@ class CatalogProvider extends ChangeNotifier {
       _products = await _repository.fetchProducts(limit: 200, offset: 0);
       _error = null;
     } catch (e) {
-      _error = e.toString();
+      _error = e is ApiException ? e.messageOrBody : e.toString();
     } finally {
       _loading = false;
       notifyListeners();
+    }
+  }
+
+  Future<ProductEntity?> fetchProductById(int id) async {
+    try {
+      return await _repository.fetchProductById(id);
+    } catch (_) {
+      return null;
     }
   }
 }
