@@ -5,6 +5,7 @@ class ProductEntity {
     required this.description,
     required this.imageUrl,
     required this.category,
+    required this.categoryId,
     required this.finalPriceLak,
     required this.sourceUrl,
   });
@@ -14,17 +15,32 @@ class ProductEntity {
   final String description;
   final String imageUrl;
   final String category;
+  final int? categoryId;
   final double finalPriceLak;
   final String sourceUrl;
 
   factory ProductEntity.fromJson(Map<String, dynamic> j) {
-    final cat = (j['category'] as String?)?.trim();
+    String categoryName = '';
+    int? categoryId = (j['category_id'] as num?)?.toInt();
+    final nested = j['category'];
+    if (nested is Map<String, dynamic>) {
+      categoryName = nested['name'] as String? ?? '';
+      categoryId ??= (nested['id'] as num?)?.toInt();
+    }
+    final cat = (j['category'] is String ? j['category'] as String? : null)?.trim();
+    if (cat != null && cat.isNotEmpty) {
+      categoryName = cat;
+    }
+    if (categoryName.isEmpty) {
+      categoryName = 'ທົ່ວໄປ';
+    }
     return ProductEntity(
       id: (j['id'] as num).toInt(),
       name: j['name'] as String? ?? '',
       description: j['description'] as String? ?? '',
       imageUrl: j['image_url'] as String? ?? '',
-      category: (cat != null && cat.isNotEmpty) ? cat : 'ທົ່ວໄປ',
+      category: categoryName,
+      categoryId: categoryId,
       finalPriceLak: (j['final_price_lak'] as num?)?.toDouble() ?? 0,
       sourceUrl: j['source_url'] as String? ?? '',
     );

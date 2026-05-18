@@ -1,4 +1,5 @@
 import '../../domain/entities/order_entity.dart';
+import '../../domain/entities/shipping_quote_entity.dart';
 import '../../domain/repositories/orders_repository.dart';
 import '../datasources/remote/api_service.dart';
 
@@ -8,19 +9,43 @@ class OrdersRepositoryImpl implements OrdersRepository {
   final ApiService _api;
 
   @override
-  Future<List<OrderEntity>> fetchMyOrders(String accessToken, {int limit = 100, int offset = 0}) {
-    return _api.fetchMyOrders(accessToken, limit: limit, offset: offset);
+  Future<({List<OrderEntity> items, int page, int totalPages, bool hasNext})> fetchOrdersByPhone({
+    required String phone,
+    int page = 1,
+    int limit = 10,
+  }) {
+    return _api.fetchOrdersByPhone(phone: phone, page: page, limit: limit);
+  }
+
+  @override
+  Future<ShippingQuoteEntity> fetchShippingQuote(double subtotalLak) {
+    return _api.fetchShippingQuote(subtotalLak);
+  }
+
+  @override
+  Future<({double shippingFeeLak, double freeShippingMinSubtotalLak})> fetchShippingConfig() {
+    return _api.fetchShippingConfig();
   }
 
   @override
   Future<OrderEntity> placeOrder(
     String accessToken, {
-    required double totalAmountLak,
+    required String paymentMethod,
+    required List<({int productId, int quantity})> items,
+    required String recipientName,
+    required String phone,
+    required String province,
+    required String addressDetail,
     String paymentReceiptUrl = '',
   }) {
     return _api.placeOrder(
       accessToken,
-      totalAmountLak: totalAmountLak,
+      paymentMethod: paymentMethod,
+      items: items,
+      recipientName: recipientName,
+      phone: phone,
+      province: province,
+      addressDetail: addressDetail,
       paymentReceiptUrl: paymentReceiptUrl,
     );
   }

@@ -4,8 +4,10 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/constants/api_config.dart';
 import '../../../domain/entities/auth_user_entity.dart';
+import '../../../domain/entities/category_entity.dart';
 import '../../../domain/entities/order_entity.dart';
 import '../../../domain/entities/product_entity.dart';
+import '../../../domain/entities/shipping_quote_entity.dart';
 
 /// Remote client for the Lao Beauty & Health Go API (`shopapi`).
 class ApiService {
@@ -51,9 +53,31 @@ class ApiService {
     }
   }
 
-  Future<List<ProductEntity>> fetchProducts({int limit = 100, int offset = 0}) async {
+  Future<List<CategoryEntity>> fetchCategories({bool rootsOnly = false, int? parentId}) async {
+    final query = <String, String>{};
+    if (rootsOnly) query['roots_only'] = 'true';
+    if (parentId != null) query['parent_id'] = '$parentId';
+    final res = await _client.get(_uri('/categories', query.isEmpty ? null : query), headers: _headers());
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    final raw = map['items'] as List<dynamic>? ?? const [];
+    return raw.map((e) => CategoryEntity.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<ProductEntity>> fetchProducts({
+    int limit = 100,
+    int offset = 0,
+    int? categoryId,
+  }) async {
+    final query = <String, String>{
+      'limit': '$limit',
+      'offset': '$offset',
+    };
+    if (categoryId != null) query['category_id'] = '$categoryId';
     final res = await _client.get(
-      _uri('/products', {'limit': '$limit', 'offset': '$offset'}),
+      _uri('/products', query),
       headers: _headers(),
     );
     if (res.statusCode != 200) {
@@ -234,17 +258,74 @@ class ApiService {
     return const [];
   }
 
+  Future<({double shippingFeeLak, double freeShippingMinSubtotalLak})> fetchShippingConfig() async {
+    final res = await _client.get(_uri('/orders/shipping-config'), headers: _headers());
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    return (
+      shippingFeeLak: (map['shipping_fee_lak'] as num?)?.toDouble() ?? 0,
+      freeShippingMinSubtotalLak: (map['free_shipping_min_subtotal_lak'] as num?)?.toDouble() ?? 0,
+    );
+  }
+
+  Future<ShippingQuoteEntity> fetchShippingQuote(double subtotalLak) async {
+    final res = await _client.get(
+      _uri('/orders/shipping-quote', {'subtotal_lak': subtotalLak.toStringAsFixed(0)}),
+      headers: _headers(),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    return ShippingQuoteEntity.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<({List<OrderEntity> items, int page, int totalPages, bool hasNext})> fetchOrdersByPhone({
+    required String phone,
+    int page = 1,
+    int limit = 10,
+  }) async {
+    final res = await _client.get(
+      _uri('/ordersbyphone', {'phone': phone, 'page': '$page', 'limit': '$limit'}),
+      headers: _headers(),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    final raw = map['items'] as List<dynamic>? ?? const [];
+    return (
+      items: raw.map((e) => OrderEntity.fromJson(e as Map<String, dynamic>)).toList(),
+      page: (map['page'] as num?)?.toInt() ?? 1,
+      totalPages: (map['total_pages'] as num?)?.toInt() ?? 1,
+      hasNext: map['has_next'] as bool? ?? false,
+    );
+  }
+
   Future<OrderEntity> placeOrder(
     String accessToken, {
-    required double totalAmountLak,
+    required String paymentMethod,
+    required List<({int productId, int quantity})> items,
+    required String recipientName,
+    required String phone,
+    required String province,
+    required String addressDetail,
     String paymentReceiptUrl = '',
   }) async {
     final res = await _client.post(
       _uri('/orders'),
       headers: _headers(bearer: accessToken, jsonContentType: true),
       body: jsonEncode({
-        'total_amount_lak': totalAmountLak,
+        'payment_method': paymentMethod,
         'payment_receipt_url': paymentReceiptUrl,
+        'items': items.map((e) => {'product_id': e.productId, 'quantity': e.quantity}).toList(),
+        'shipping': {
+          'recipient_name': recipientName,
+          'phone': phone,
+          'province': province,
+          'address_detail': addressDetail,
+        },
       }),
     );
     if (res.statusCode != 201) {

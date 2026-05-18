@@ -5,7 +5,7 @@ import 'core/theme/app_theme.dart';
 import 'data/datasources/remote/api_service.dart';
 import 'data/repositories/catalog_repository_impl.dart';
 import 'data/repositories/orders_repository_impl.dart';
-import 'presentation/providers/auth_provider.dart';
+import 'presentation/providers/cart_provider.dart';
 import 'presentation/providers/catalog_provider.dart';
 import 'presentation/providers/orders_provider.dart';
 import 'presentation/screens/shell/main_shell.dart';
@@ -17,19 +17,16 @@ Future<void> main() async {
   final catalogRepo = CatalogRepositoryImpl(api);
   final ordersRepo = OrdersRepositoryImpl(api);
 
-  final auth = AuthProvider(api);
-  await auth.bootstrap();
-
   runApp(
     MultiProvider(
       providers: [
         Provider<ApiService>.value(value: api),
-        ChangeNotifierProvider.value(value: auth),
+        ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(
           create: (_) => CatalogProvider(catalogRepo)..load(),
         ),
         ChangeNotifierProvider(
-          create: (_) => OrdersProvider(ordersRepo),
+          create: (_) => OrdersProvider(ordersRepo, api),
         ),
       ],
       child: const LaoBeautyApp(),
