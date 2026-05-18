@@ -7,6 +7,7 @@ import '../../../domain/entities/auth_user_entity.dart';
 import '../../../domain/entities/category_entity.dart';
 import '../../../domain/entities/order_entity.dart';
 import '../../../domain/entities/product_entity.dart';
+import '../../../domain/entities/products_page.dart';
 import '../../../domain/entities/shipping_quote_entity.dart';
 
 /// Remote client for the Lao Beauty & Health Go API (`shopapi`).
@@ -66,16 +67,22 @@ class ApiService {
     return raw.map((e) => CategoryEntity.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  Future<List<ProductEntity>> fetchProducts({
+  /// List products. Supports `q` (search name/description), `category_id`, pagination.
+  Future<ProductsPage> fetchProducts({
     int limit = 100,
     int offset = 0,
     int? categoryId,
+    String? q,
   }) async {
     final query = <String, String>{
       'limit': '$limit',
       'offset': '$offset',
     };
     if (categoryId != null) query['category_id'] = '$categoryId';
+    final trimmedQ = q?.trim();
+    if (trimmedQ != null && trimmedQ.isNotEmpty) {
+      query['q'] = trimmedQ;
+    }
     final res = await _client.get(
       _uri('/products', query),
       headers: _headers(),
@@ -85,7 +92,9 @@ class ApiService {
     }
     final map = jsonDecode(res.body) as Map<String, dynamic>;
     final raw = map['items'] as List<dynamic>? ?? const [];
-    return raw.map((e) => ProductEntity.fromJson(e as Map<String, dynamic>)).toList();
+    final items = raw.map((e) => ProductEntity.fromJson(e as Map<String, dynamic>)).toList();
+    final total = (map['total'] as num?)?.toInt() ?? items.length;
+    return ProductsPage(items: items, total: total);
   }
 
   Future<ProductEntity> fetchProductById(int id) async {

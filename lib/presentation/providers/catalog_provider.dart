@@ -14,17 +14,24 @@ class CatalogProvider extends ChangeNotifier {
   final CatalogRepository _repository;
 
   List<CategoryEntity> _categories = const [];
-  List<ProductEntity> _allProducts = const [];
+  List<ProductEntity> _products = const [];
+  int _total = 0;
   bool _loading = false;
   String? _error;
   int? _selectedCategoryId;
   String _searchQuery = '';
+  bool _disposed = false;
+  Timer? _searchDebounce;
+  int _requestGen = 0;
 
   List<CategoryEntity> get categories => _categories;
+  List<ProductEntity> get products => _products;
+  int get total => _total;
   bool get isLoading => _loading;
   String? get error => _error;
   int? get selectedCategoryId => _selectedCategoryId;
   String get searchQuery => _searchQuery;
+  bool get isSearching => _searchQuery.trim().isNotEmpty;
 
   List<({int? id, String label})> get categoryChips {
     return [
@@ -33,81 +40,91 @@ class CatalogProvider extends ChangeNotifier {
     ];
   }
 
-  /// Products after category + search filters (client-side, like the web store).
-  List<ProductEntity> get visibleProducts {
-    var list = _allProducts;
-
-    if (_selectedCategoryId != null) {
-      list = list.where((p) => p.categoryId == _selectedCategoryId).toList();
-    }
-
-    if (_searchQuery.trim().isNotEmpty) {
-      list = list.where((p) => _matchesSearch(p, _searchQuery.trim())).toList();
-    }
-
-    return list;
-  }
+  Future<void> load() => _fetchProducts();
 
   void setSearchQuery(String query) {
-    if (query == _searchQuery) return;
     _searchQuery = query;
-    notifyListeners();
+    _safeNotify();
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      if (_disposed) return;
+      _fetchProducts();
+    });
   }
 
   void clearSearch() {
+    _searchDebounce?.cancel();
     if (_searchQuery.isEmpty) return;
     _searchQuery = '';
-    notifyListeners();
+    _fetchProducts();
   }
 
   void selectCategory(int? categoryId) {
     if (_selectedCategoryId == categoryId) return;
     _selectedCategoryId = categoryId;
-    notifyListeners();
+    _fetchProducts();
   }
 
-  Future<void> load() async {
+  Future<void> _fetchProducts() async {
+    final gen = ++_requestGen;
+    final q = _searchQuery.trim();
+
     _loading = true;
     _error = null;
-    notifyListeners();
+    _safeNotify();
+
     try {
       if (_categories.isEmpty) {
         _categories = await _repository.fetchCategories();
       }
-      _allProducts = await _repository.fetchProducts(limit: 500, offset: 0);
+
+      final page = await _repository.fetchProducts(
+        limit: 200,
+        offset: 0,
+        categoryId: _selectedCategoryId,
+        q: q.isEmpty ? null : q,
+      );
+
+      if (gen != _requestGen || _disposed) return;
+
+      _products = page.items;
+      _total = page.total;
       _error = null;
-      unawaited(_preloadImageUrls(_allProducts));
+      unawaited(_preloadImageUrls(_products));
     } catch (e) {
+      if (gen != _requestGen || _disposed) return;
       _error = e is ApiException ? e.messageOrBody : e.toString();
+      _products = const [];
+      _total = 0;
     } finally {
-      _loading = false;
-      notifyListeners();
+      if (gen == _requestGen && !_disposed) {
+        _loading = false;
+        _safeNotify();
+      }
     }
-  }
-
-  bool _matchesSearch(ProductEntity p, String query) {
-    final q = query.toLowerCase();
-    bool hit(String value) {
-      if (value.isEmpty) return false;
-      final v = value.toLowerCase();
-      return v.contains(q) || value.contains(query);
-    }
-
-    return hit(p.name) || hit(p.category) || hit(p.description);
   }
 
   Future<void> _preloadImageUrls(List<ProductEntity> products) async {
     final urls = products.map((p) => p.imageUrl).where((u) => u.trim().isNotEmpty).toSet();
     await Future.wait(urls.map(ProductImageUrlResolver.shared.resolve));
-    notifyListeners();
   }
 
   Future<ProductEntity?> fetchProductById(int id) async {
     try {
       return await _repository.fetchProductById(id);
     } catch (_) {
-      final local = _allProducts.where((p) => p.id == id).firstOrNull;
-      return local;
+      return _products.where((p) => p.id == id).firstOrNull;
     }
+  }
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 }
