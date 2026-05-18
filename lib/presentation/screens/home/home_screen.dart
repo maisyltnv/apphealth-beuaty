@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/banner_link_handler.dart';
+import '../../../domain/entities/banner_entity.dart';
+import '../../providers/banners_provider.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/catalog_provider.dart';
 import '../../widgets/empty_state.dart';
@@ -31,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final catalog = context.watch<CatalogProvider>();
+    final banners = context.watch<BannersProvider>();
     final isSearching = catalog.isSearching;
     final products = catalog.products;
 
@@ -50,7 +54,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return RefreshIndicator(
       color: AppColors.primary,
-      onRefresh: catalog.load,
+      onRefresh: () async {
+        await Future.wait([catalog.load(), banners.load()]);
+      },
       child: CustomScrollView(
         key: const PageStorageKey<String>('home_scroll'),
         physics: const AlwaysScrollableScrollPhysics(),
@@ -78,9 +84,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         const SizedBox(height: AppSpacing.md),
                         PromoBanner(
-                          onShopTap: () => catalog.selectCategory(null),
+                          banners: banners.banners,
+                          isLoading: banners.isLoading,
+                          onBannerTap: (b) => _onBannerTap(context, catalog, b),
                         ),
-                        const SizedBox(height: AppSpacing.lg),
+                        if (banners.hasBanners || banners.isLoading)
+                          const SizedBox(height: AppSpacing.lg),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                           child: Row(
@@ -222,6 +231,21 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
+  }
+
+  void _onBannerTap(BuildContext context, CatalogProvider catalog, BannerEntity banner) {
+    switch (parseBannerLink(banner.linkUrl)) {
+      case BannerLinkProduct(:final productId):
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ProductDetailScreen(productId: productId),
+          ),
+        );
+      case BannerLinkCategory(:final categoryId):
+        catalog.selectCategory(categoryId);
+      case BannerLinkShowAll():
+        catalog.selectCategory(null);
+    }
   }
 }
 

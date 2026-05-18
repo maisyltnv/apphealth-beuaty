@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../../core/constants/api_config.dart';
 import '../../../domain/entities/auth_user_entity.dart';
+import '../../../domain/entities/banner_entity.dart';
 import '../../../domain/entities/category_entity.dart';
 import '../../../domain/entities/order_entity.dart';
 import '../../../domain/entities/product_entity.dart';
@@ -95,6 +96,26 @@ class ApiService {
     final items = raw.map((e) => ProductEntity.fromJson(e as Map<String, dynamic>)).toList();
     final total = (map['total'] as num?)?.toInt() ?? items.length;
     return ProductsPage(items: items, total: total);
+  }
+
+  /// Active homepage slides (`is_active=true`), sorted by API.
+  Future<List<BannerEntity>> fetchBanners() async {
+    final res = await _client.get(_uri('/banners'), headers: _headers());
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    final map = jsonDecode(res.body) as Map<String, dynamic>;
+    final raw = map['items'] as List<dynamic>? ?? const [];
+    return raw.map((e) => BannerEntity.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Single active slide by id (404 if inactive).
+  Future<BannerEntity> fetchBannerById(int id) async {
+    final res = await _client.get(_uri('/banners/$id'), headers: _headers());
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    return BannerEntity.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   Future<ProductEntity> fetchProductById(int id) async {

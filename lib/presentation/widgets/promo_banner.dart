@@ -5,66 +5,27 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/utils/product_image_url_resolver.dart';
+import '../../domain/entities/banner_entity.dart';
 
-class _HeroSlide {
-  const _HeroSlide({
-    required this.badge,
-    required this.title,
-    required this.subtitle,
-    required this.gradient,
-    required this.icon,
+/// Full-width hero carousel fed by `GET /banners`.
+class PromoBanner extends StatefulWidget {
+  const PromoBanner({
+    super.key,
+    required this.banners,
+    this.isLoading = false,
+    this.onBannerTap,
   });
 
-  final String badge;
-  final String title;
-  final String subtitle;
-  final LinearGradient gradient;
-  final IconData icon;
-}
-
-/// Full-width e-commerce hero carousel (edge-to-edge).
-class PromoBanner extends StatefulWidget {
-  const PromoBanner({super.key, this.onShopTap});
-
-  final VoidCallback? onShopTap;
+  final List<BannerEntity> banners;
+  final bool isLoading;
+  final void Function(BannerEntity banner)? onBannerTap;
 
   @override
   State<PromoBanner> createState() => _PromoBannerState();
 }
 
 class _PromoBannerState extends State<PromoBanner> {
-  static const _slides = [
-    _HeroSlide(
-      badge: 'ສິນຄ້າໃໝ່',
-      title: 'ສວຍສຸຂະພາບ\nທຸກວັນ',
-      subtitle: 'ຊື້ສິນຄ້າຄຸນນະພາບ ຈາກຈີນ',
-      gradient: AppColors.heroGradient,
-      icon: Icons.spa_rounded,
-    ),
-    _HeroSlide(
-      badge: 'ສົ່ງຟຣີ',
-      title: 'ຈັດສົ່ງ\nທົ່ວລາວ',
-      subtitle: 'ສັ່ງຜ່ານແອັບ · ຊຳລະເມື່ອຮັບສິນຄ້າ',
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF043D2E), Color(0xFF064E3B), Color(0xFF047857)],
-      ),
-      icon: Icons.local_shipping_rounded,
-    ),
-    _HeroSlide(
-      badge: 'ໂປຣໂມຊັ່ນ',
-      title: 'ອາຫານເສີມ\nແລະ ຜິວຫນັງ',
-      subtitle: 'ເລືອກຫມວດສິນຄ້າ ແລະ ຊື້ເລີຍ',
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF022C22), Color(0xFF064E3B), Color(0xFF065F46)],
-      ),
-      icon: Icons.favorite_rounded,
-    ),
-  ];
-
   final _pageCtrl = PageController();
   Timer? _autoTimer;
   int _page = 0;
@@ -72,9 +33,24 @@ class _PromoBannerState extends State<PromoBanner> {
   @override
   void initState() {
     super.initState();
+    _startAutoScroll();
+  }
+
+  @override
+  void didUpdateWidget(PromoBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.banners.length != widget.banners.length) {
+      _page = 0;
+      _startAutoScroll();
+    }
+  }
+
+  void _startAutoScroll() {
+    _autoTimer?.cancel();
+    if (widget.banners.length <= 1) return;
     _autoTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted || !_pageCtrl.hasClients) return;
-      final next = (_page + 1) % _slides.length;
+      if (!mounted || !_pageCtrl.hasClients || widget.banners.isEmpty) return;
+      final next = (_page + 1) % widget.banners.length;
       _pageCtrl.animateToPage(
         next,
         duration: const Duration(milliseconds: 450),
@@ -97,7 +73,15 @@ class _PromoBannerState extends State<PromoBanner> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isLoading) {
+      return _BannerSkeleton(height: _heroHeight(context));
+    }
+    if (widget.banners.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     final height = _heroHeight(context);
+    final count = widget.banners.length;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -107,86 +91,107 @@ class _PromoBannerState extends State<PromoBanner> {
           height: height,
           child: PageView.builder(
             controller: _pageCtrl,
-            itemCount: _slides.length,
+            itemCount: count,
             onPageChanged: (i) => setState(() => _page = i),
-            itemBuilder: (context, index) => _HeroSlideView(
-              slide: _slides[index],
-              onShopTap: widget.onShopTap,
+            itemBuilder: (context, index) => _BannerSlideView(
+              banner: widget.banners[index],
+              onTap: widget.onBannerTap,
             ),
           ),
         ),
-        const SizedBox(height: AppSpacing.sm),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(_slides.length, (i) {
-            final active = i == _page;
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: active ? 18 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: active ? AppColors.primary : AppColors.border,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            );
-          }),
-        ),
+        if (count > 1) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(count, (i) {
+              final active = i == _page;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: active ? 18 : 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: active ? AppColors.primary : AppColors.border,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            }),
+          ),
+        ],
       ],
     );
   }
 }
 
-class _HeroSlideView extends StatelessWidget {
-  const _HeroSlideView({required this.slide, this.onShopTap});
+class _BannerSlideView extends StatefulWidget {
+  const _BannerSlideView({required this.banner, this.onTap});
 
-  final _HeroSlide slide;
-  final VoidCallback? onShopTap;
+  final BannerEntity banner;
+  final void Function(BannerEntity banner)? onTap;
+
+  @override
+  State<_BannerSlideView> createState() => _BannerSlideViewState();
+}
+
+class _BannerSlideViewState extends State<_BannerSlideView> {
+  String? _resolvedImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveImage();
+  }
+
+  @override
+  void didUpdateWidget(_BannerSlideView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.banner.imageUrl != widget.banner.imageUrl) {
+      _resolveImage();
+    }
+  }
+
+  Future<void> _resolveImage() async {
+    final raw = widget.banner.imageUrl.trim();
+    if (raw.isEmpty) {
+      if (mounted) setState(() => _resolvedImageUrl = null);
+      return;
+    }
+    final resolved = await ProductImageUrlResolver.shared.resolve(raw);
+    if (mounted) setState(() => _resolvedImageUrl = resolved);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final b = widget.banner;
+    final imageUrl = _resolvedImageUrl;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onShopTap,
+        onTap: widget.onTap != null ? () => widget.onTap!(b) : null,
         child: Ink(
-          decoration: BoxDecoration(gradient: slide.gradient),
+          decoration: const BoxDecoration(gradient: AppColors.heroGradient),
           child: Stack(
             fit: StackFit.expand,
             clipBehavior: Clip.hardEdge,
             children: [
-              Positioned(
-                right: -24,
-                top: -16,
-                child: Icon(
-                  slide.icon,
-                  size: 140,
-                  color: Colors.white.withValues(alpha: 0.12),
+              if (imageUrl != null && imageUrl.isNotEmpty)
+                Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
                 ),
-              ),
-              Positioned(
-                left: -40,
-                bottom: -40,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.06),
-                  ),
-                ),
-              ),
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                     colors: [
-                      Colors.black.withValues(alpha: 0.35),
-                      Colors.black.withValues(alpha: 0.08),
-                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.55),
+                      Colors.black.withValues(alpha: 0.25),
+                      Colors.black.withValues(alpha: 0.1),
                     ],
-                    stops: const [0.0, 0.45, 1.0],
+                    stops: const [0.0, 0.5, 1.0],
                   ),
                 ),
               ),
@@ -207,7 +212,7 @@ class _HeroSlideView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        slide.badge,
+                        b.displayBadge,
                         style: GoogleFonts.notoSansLao(
                           color: Colors.white,
                           fontSize: 11,
@@ -217,7 +222,9 @@ class _HeroSlideView extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text(
-                      slide.title,
+                      b.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.notoSansLao(
                         color: Colors.white,
                         fontSize: 24,
@@ -226,20 +233,22 @@ class _HeroSlideView extends StatelessWidget {
                         letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      slide.subtitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.notoSansLao(
-                        color: Colors.white.withValues(alpha: 0.92),
-                        fontSize: 13,
-                        height: 1.25,
+                    if (b.displaySubtitle.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        b.displaySubtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.notoSansLao(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          fontSize: 13,
+                          height: 1.25,
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: AppSpacing.md),
                     FilledButton(
-                      onPressed: onShopTap,
+                      onPressed: widget.onTap != null ? () => widget.onTap!(b) : null,
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.secondary,
                         foregroundColor: AppColors.onSecondary,
@@ -251,7 +260,7 @@ class _HeroSlideView extends StatelessWidget {
                         elevation: 0,
                       ),
                       child: Text(
-                        'ຊື້ເລີຍ',
+                        b.displayCta,
                         style: GoogleFonts.notoSansLao(
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
@@ -262,6 +271,30 @@ class _HeroSlideView extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BannerSkeleton extends StatelessWidget {
+  const _BannerSkeleton({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: height,
+      child: ColoredBox(
+        color: AppColors.surfaceMuted,
+        child: const Center(
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
           ),
         ),
       ),
