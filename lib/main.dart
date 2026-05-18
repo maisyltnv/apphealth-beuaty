@@ -32,7 +32,7 @@ Future<void> main() async {
           create: (_) => BannersProvider(bannerRepo)..load(),
         ),
         ChangeNotifierProvider(
-          create: (_) => OrdersProvider(ordersRepo, api),
+          create: (_) => OrdersProvider(ordersRepo),
         ),
       ],
       child: const LaoBeautyApp(),

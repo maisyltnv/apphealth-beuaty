@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../core/services/guest_checkout_auth.dart';
 import '../../data/datasources/remote/api_service.dart';
 import '../../domain/entities/cart_item_entity.dart';
 import '../../domain/entities/order_entity.dart';
@@ -9,10 +8,9 @@ import '../../domain/entities/shipping_quote_entity.dart';
 import '../../domain/repositories/orders_repository.dart';
 
 class OrdersProvider extends ChangeNotifier {
-  OrdersProvider(this._repository, this._api);
+  OrdersProvider(this._repository);
 
   final OrdersRepository _repository;
-  final ApiService _api;
 
   static const _kSavedPhone = 'customer_phone';
 
@@ -93,15 +91,14 @@ class OrdersProvider extends ChangeNotifier {
     required String province,
     required String addressDetail,
     required String paymentMethod,
-    String paymentReceiptUrl = '',
+    List<int>? paymentReceiptBytes,
+    String? paymentReceiptFilename,
   }) async {
     if (cartItems.isEmpty) return null;
     _error = null;
     notifyListeners();
     try {
-      final token = await GuestCheckoutAuth(_api).accessTokenForPhone(phone);
       final created = await _repository.placeOrder(
-        token,
         paymentMethod: paymentMethod,
         items: cartItems
             .map((e) => (productId: e.product.id, quantity: e.quantity))
@@ -110,7 +107,8 @@ class OrdersProvider extends ChangeNotifier {
         phone: phone,
         province: province,
         addressDetail: addressDetail,
-        paymentReceiptUrl: paymentReceiptUrl,
+        paymentReceiptBytes: paymentReceiptBytes,
+        paymentReceiptFilename: paymentReceiptFilename,
       );
       await savePhone(phone);
       _orders = [created, ..._orders];

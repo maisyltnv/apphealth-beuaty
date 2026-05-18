@@ -28,25 +28,25 @@ class OrdersRepositoryImpl implements OrdersRepository {
   }
 
   @override
-  Future<OrderEntity> placeOrder(
-    String accessToken, {
+  Future<OrderEntity> placeOrder({
     required String paymentMethod,
     required List<({int productId, int quantity})> items,
     required String recipientName,
     required String phone,
     required String province,
     required String addressDetail,
-    String paymentReceiptUrl = '',
+    List<int>? paymentReceiptBytes,
+    String? paymentReceiptFilename,
   }) {
     return _api.placeOrder(
-      accessToken,
       paymentMethod: paymentMethod,
       items: items,
       recipientName: recipientName,
       phone: phone,
       province: province,
       addressDetail: addressDetail,
-      paymentReceiptUrl: paymentReceiptUrl,
+      paymentReceiptBytes: paymentReceiptBytes,
+      paymentReceiptFilename: paymentReceiptFilename,
     );
   }
 }

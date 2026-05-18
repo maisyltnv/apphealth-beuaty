@@ -333,29 +333,54 @@ class ApiService {
     );
   }
 
-  Future<OrderEntity> placeOrder(
-    String accessToken, {
+  /// Public `POST /orders`. Sends multipart when [paymentReceiptBytes] is set (BCEL QR).
+  Future<OrderEntity> placeOrder({
     required String paymentMethod,
     required List<({int productId, int quantity})> items,
     required String recipientName,
     required String phone,
     required String province,
     required String addressDetail,
-    String paymentReceiptUrl = '',
+    List<int>? paymentReceiptBytes,
+    String? paymentReceiptFilename,
   }) async {
+    final itemsJson = items.map((e) => {'product_id': e.productId, 'quantity': e.quantity}).toList();
+    final shippingJson = {
+      'recipient_name': recipientName,
+      'phone': phone,
+      'province': province,
+      'address_detail': addressDetail,
+    };
+
+    if (paymentReceiptBytes != null && paymentReceiptBytes.isNotEmpty) {
+      final request = http.MultipartRequest('POST', _uri('/orders'));
+      request.headers['Accept'] = 'application/json';
+      request.fields['payment_method'] = paymentMethod;
+      request.fields['items'] = jsonEncode(itemsJson);
+      request.fields['shipping'] = jsonEncode(shippingJson);
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'payment_receipt',
+          paymentReceiptBytes,
+          filename: paymentReceiptFilename ?? 'receipt.jpg',
+        ),
+      );
+      final streamed = await request.send();
+      final res = await http.Response.fromStream(streamed);
+      if (res.statusCode != 201) {
+        throw ApiException(res.statusCode, res.body);
+      }
+      final map = jsonDecode(res.body) as Map<String, dynamic>;
+      return OrderEntity.fromJson(map);
+    }
+
     final res = await _client.post(
       _uri('/orders'),
-      headers: _headers(bearer: accessToken, jsonContentType: true),
+      headers: _headers(jsonContentType: true),
       body: jsonEncode({
         'payment_method': paymentMethod,
-        'payment_receipt_url': paymentReceiptUrl,
-        'items': items.map((e) => {'product_id': e.productId, 'quantity': e.quantity}).toList(),
-        'shipping': {
-          'recipient_name': recipientName,
-          'phone': phone,
-          'province': province,
-          'address_detail': addressDetail,
-        },
+        'items': itemsJson,
+        'shipping': shippingJson,
       }),
     );
     if (res.statusCode != 201) {

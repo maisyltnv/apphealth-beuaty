@@ -12,14 +12,15 @@ abstract class OrdersRepository {
 
   Future<({double shippingFeeLak, double freeShippingMinSubtotalLak})> fetchShippingConfig();
 
-  Future<OrderEntity> placeOrder(
-    String accessToken, {
+  /// Public checkout — [paymentReceiptBytes] required when [paymentMethod] is `bcel_qr`.
+  Future<OrderEntity> placeOrder({
     required String paymentMethod,
     required List<({int productId, int quantity})> items,
     required String recipientName,
     required String phone,
     required String province,
     required String addressDetail,
-    String paymentReceiptUrl = '',
+    List<int>? paymentReceiptBytes,
+    String? paymentReceiptFilename,
   });
 }
