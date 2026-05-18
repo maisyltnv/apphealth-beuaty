@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../domain/entities/product_entity.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/catalog_provider.dart';
 import '../../widgets/empty_state.dart';
@@ -22,7 +21,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchCtrl = TextEditingController();
-  String _query = '';
 
   @override
   void dispose() {
@@ -30,23 +28,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  List<ProductEntity> _filter(List<ProductEntity> products) {
-    if (_query.isEmpty) return products;
-    final q = _query.toLowerCase();
-    return products.where((p) {
-      return p.name.toLowerCase().contains(q) || p.category.toLowerCase().contains(q);
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Consumer<CatalogProvider>(
       builder: (context, catalog, _) {
-        if (catalog.isLoading && catalog.products.isEmpty) {
+        if (catalog.isLoading && catalog.visibleProducts.isEmpty && catalog.searchQuery.isEmpty) {
           return const _HomeLoading();
         }
 
-        if (catalog.error != null && catalog.products.isEmpty) {
+        if (catalog.error != null && catalog.visibleProducts.isEmpty && catalog.searchQuery.isEmpty) {
           return EmptyState(
             icon: Icons.cloud_off_rounded,
             title: 'ບໍ່ສາມາດເຊື່ອມ API',
@@ -56,7 +46,8 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        final products = _filter(catalog.visibleProducts);
+        final products = catalog.visibleProducts;
+        final isSearching = catalog.searchQuery.isNotEmpty;
 
         return RefreshIndicator(
           color: AppColors.primary,
@@ -64,85 +55,116 @@ class _HomeScreenState extends State<HomeScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              SliverToBoxAdapter(child: _HomeHeader(searchCtrl: _searchCtrl, onSearchChanged: (v) => setState(() => _query = v))),
-              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
-              const SliverToBoxAdapter(child: PromoBanner()),
-              const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
+              SliverToBoxAdapter(
+                child: _HomeHeader(
+                  searchCtrl: _searchCtrl,
+                  searchQuery: catalog.searchQuery,
+                  onSearchChanged: catalog.setSearchQuery,
+                  onSearchClear: () {
+                    _searchCtrl.clear();
+                    catalog.clearSearch();
+                  },
+                ),
+              ),
+              if (!isSearching) ...[
+                const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
+                const SliverToBoxAdapter(child: PromoBanner()),
+                const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                    child: Row(
+                      children: [
+                        Text(
+                          'ຫມວດສິນຄ້າ',
+                          style: GoogleFonts.notoSansLao(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(builder: (_) => const QrScanScreen()),
+                          ),
+                          icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                          label: const Text('ສະແກນ'),
+                          style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 44,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: catalog.categoryChips.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+                      itemBuilder: (context, i) {
+                        final chip = catalog.categoryChips[i];
+                        final selected = catalog.selectedCategoryId == chip.id;
+                        return FilterChip(
+                          label: Text(chip.label),
+                          selected: selected,
+                          showCheckmark: true,
+                          onSelected: (_) => catalog.selectCategory(chip.id),
+                          selectedColor: AppColors.primary,
+                          labelStyle: GoogleFonts.notoSansLao(
+                            fontWeight: FontWeight.w600,
+                            color: selected ? Colors.white : AppColors.textSecondary,
+                          ),
+                          backgroundColor: AppColors.surface,
+                          side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ] else
+                const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.lg)),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.md),
                   child: Row(
                     children: [
-                      Text(
-                        'ຫມວດສິນຄ້າ',
-                        style: GoogleFonts.notoSansLao(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                      Expanded(
+                        child: Text(
+                          isSearching
+                              ? 'ຜົນການຄົ້ນຫາ (${products.length})'
+                              : 'ສິນຄ້າແນະນຳ',
+                          style: GoogleFonts.notoSansLao(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(builder: (_) => const QrScanScreen()),
+                      if (isSearching)
+                        TextButton(
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            catalog.clearSearch();
+                          },
+                          child: const Text('ລ້າງ'),
                         ),
-                        icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-                        label: const Text('ສະແກນ'),
-                        style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-                      ),
                     ],
                   ),
                 ),
               ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: catalog.categoryChips.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-                    itemBuilder: (context, i) {
-                      final chip = catalog.categoryChips[i];
-                      final selected = catalog.selectedCategoryId == chip.id;
-                      return FilterChip(
-                        label: Text(chip.label),
-                        selected: selected,
-                        showCheckmark: true,
-                        onSelected: (_) => catalog.selectCategory(chip.id),
-                        selectedColor: AppColors.primary,
-                        labelStyle: GoogleFonts.notoSansLao(
-                          fontWeight: FontWeight.w600,
-                          color: selected ? Colors.white : AppColors.textSecondary,
-                        ),
-                        backgroundColor: AppColors.surface,
-                        side: BorderSide(color: selected ? AppColors.primary : AppColors.border),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xl, AppSpacing.lg, AppSpacing.md),
-                  child: Text(
-                    'ສິນຄ້າແນະນຳ',
-                    style: GoogleFonts.notoSansLao(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              ),
               if (products.isEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   hasScrollBody: false,
                   child: EmptyState(
-                    icon: Icons.inventory_2_outlined,
-                    title: 'ບໍ່ພົບສິນຄ້າ',
-                    subtitle: 'ລອງເລືອກຫມວດອື່ນ ຫຼື ຄົ້ນຫາໃໝ່',
+                    icon: isSearching ? Icons.search_off_rounded : Icons.inventory_2_outlined,
+                    title: isSearching ? 'ບໍ່ພົບສິນຄ້າ' : 'ບໍ່ມີສິນຄ້າໃນຫມວດນີ້',
+                    subtitle: isSearching
+                        ? 'ລອງຄຳອື່ນ ຫຼື ກວດສອບການສະກົດ'
+                        : 'ລອງເລືອກຫມວດອື່ນ',
                   ),
                 )
               else
@@ -188,34 +210,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _HomeHeader extends StatefulWidget {
-  const _HomeHeader({required this.searchCtrl, required this.onSearchChanged});
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({
+    required this.searchCtrl,
+    required this.searchQuery,
+    required this.onSearchChanged,
+    required this.onSearchClear,
+  });
 
   final TextEditingController searchCtrl;
+  final String searchQuery;
   final ValueChanged<String> onSearchChanged;
-
-  @override
-  State<_HomeHeader> createState() => _HomeHeaderState();
-}
-
-class _HomeHeaderState extends State<_HomeHeader> {
-  @override
-  void initState() {
-    super.initState();
-    widget.searchCtrl.addListener(_onTextChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.searchCtrl.removeListener(_onTextChanged);
-    super.dispose();
-  }
-
-  void _onTextChanged() => setState(() {});
+  final VoidCallback onSearchClear;
 
   @override
   Widget build(BuildContext context) {
-    final searchCtrl = widget.searchCtrl;
     return SafeArea(
       bottom: false,
       child: Padding(
@@ -261,17 +270,16 @@ class _HomeHeaderState extends State<_HomeHeader> {
             const SizedBox(height: AppSpacing.lg),
             TextField(
               controller: searchCtrl,
-              onChanged: widget.onSearchChanged,
+              onChanged: onSearchChanged,
+              onSubmitted: onSearchChanged,
+              textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'ຄົ້ນຫາສິນຄ້າ, ຫມວດ...',
                 prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted),
-                suffixIcon: searchCtrl.text.isNotEmpty
+                suffixIcon: searchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.close_rounded, size: 20),
-                        onPressed: () {
-                          searchCtrl.clear();
-                          widget.onSearchChanged('');
-                        },
+                        onPressed: onSearchClear,
                       )
                     : null,
                 filled: true,
@@ -283,6 +291,10 @@ class _HomeHeaderState extends State<_HomeHeader> {
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
                   borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSpacing.radiusMd),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
                 ),
               ),
             ),
