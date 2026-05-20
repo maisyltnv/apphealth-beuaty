@@ -135,7 +135,7 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, 100),
         itemCount: orders.orders.length + (orders.hasNext ? 1 : 0),
-        separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+        separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
         itemBuilder: (context, i) {
           if (i >= orders.orders.length) {
             return Center(

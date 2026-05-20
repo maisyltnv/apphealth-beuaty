@@ -32,7 +32,7 @@ class CartScreen extends StatelessWidget {
           child: ListView.separated(
             padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 8),
             itemCount: cart.items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.md),
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
             itemBuilder: (context, i) {
               final item = cart.items[i];
               final p = item.product;
