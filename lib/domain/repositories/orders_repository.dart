@@ -1,6 +1,26 @@
 import '../entities/order_entity.dart';
+import '../entities/shipping_quote_entity.dart';
 
 abstract class OrdersRepository {
-  /// Uses `GET /orders` when available on the API; otherwise returns an empty list.
-  Future<List<OrderEntity>> fetchMyOrders(String accessToken);
+  Future<({List<OrderEntity> items, int page, int totalPages, bool hasNext})> fetchOrdersByPhone({
+    required String phone,
+    int page = 1,
+    int limit = 10,
+  });
+
+  Future<ShippingQuoteEntity> fetchShippingQuote(double subtotalLak);
+
+  Future<({double shippingFeeLak, double freeShippingMinSubtotalLak})> fetchShippingConfig();
+
+  /// Public checkout — [paymentReceiptBytes] required when [paymentMethod] is `bcel_qr`.
+  Future<OrderEntity> placeOrder({
+    required String paymentMethod,
+    required List<({int productId, int quantity})> items,
+    required String recipientName,
+    required String phone,
+    required String province,
+    required String addressDetail,
+    List<int>? paymentReceiptBytes,
+    String? paymentReceiptFilename,
+  });
 }

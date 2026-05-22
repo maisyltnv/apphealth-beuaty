@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/api_config.dart';
-import '../../providers/auth_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../data/datasources/remote/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,129 +15,169 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final _user = TextEditingController();
-  final _pass = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _busy = false;
-  String? _error;
+  bool? _apiOk;
 
   @override
-  void dispose() {
-    _user.dispose();
-    _pass.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ping());
   }
 
-  Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await context.read<AuthProvider>().login(_user.text.trim(), _pass.text);
-      if (mounted) {
-        _pass.clear();
-      }
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+  Future<void> _ping() async {
+    final ok = await context.read<ApiService>().pingHealth();
+    if (mounted) setState(() => _apiOk = ok);
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    final scheme = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-
-    if (!auth.isReady) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('ການເຊື່ອມຕໍ່', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                SelectableText('Base URL: ${ApiConfig.baseUrl}', style: text.bodySmall),
-                const SizedBox(height: 6),
-                Text(
-                  'Android emulator ຫຼິ້ນ API ຈາກເຄື່ອງ dev: ໃຊ້ 10.0.2.2 ໂດຍອັດຕະໂນມັດ.',
-                  style: text.bodySmall?.copyWith(color: scheme.outline),
+        Container(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          decoration: BoxDecoration(
+            gradient: AppColors.heroGradient,
+            borderRadius: BorderRadius.circular(AppSpacing.radiusXl),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (auth.isSignedIn) ...[
-          Card(
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundColor: scheme.primaryContainer,
-                child: Icon(Icons.person, color: scheme.onPrimaryContainer),
+                child: const Icon(Icons.spa_rounded, color: Colors.white, size: 30),
               ),
-              title: Text(auth.username ?? ''),
-              subtitle: const Text('ສະຖານະ: ເຂົ້າສູ່ລະບົບແລ້ວ'),
-              trailing: TextButton(
-                onPressed: () => context.read<AuthProvider>().logout(),
-                child: const Text('ອອກ'),
-              ),
-            ),
-          ),
-        ] else ...[
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('ເຂົ້າສູ່ລະບົບ', style: text.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _user,
-                      decoration: const InputDecoration(labelText: 'ຊື່ຜູ້ໃຊ້'),
-                      validator: (v) => (v == null || v.trim().length < 3) ? 'ກະລຸນາໃສ່ຊື່ຜູ້ໃຊ້' : null,
+                    Text(
+                      'Lao Beauty & Health',
+                      style: GoogleFonts.notoSansLao(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                      controller: _pass,
-                      obscureText: true,
-                      decoration: const InputDecoration(labelText: 'ລະຫັດ'),
-                      validator: (v) => (v == null || v.length < 8) ? 'ລະຫັດຕ້ອງຍາວຢ່າງໜ້ອຍ 8 ຕົວ' : null,
-                    ),
-                    if (_error != null) ...[
-                      const SizedBox(height: 10),
-                      Text(_error!, style: text.bodySmall?.copyWith(color: scheme.error)),
-                    ],
-                    const SizedBox(height: 14),
-                    FilledButton(
-                      onPressed: _busy ? null : _login,
-                      child: _busy
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('ເຂົ້າສູ່ລະບົບ'),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ຮ້ານສຸຂະພາບ & ຄວາມງາມ',
+                      style: GoogleFonts.notoSansLao(color: Colors.white.withValues(alpha: 0.9), fontSize: 13),
                     ),
                   ],
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
+        const SizedBox(height: AppSpacing.lg),
+        _InfoCard(
+          title: 'ການເຊື່ອມຕໍ່ API',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(ApiConfig.baseUrl, style: GoogleFonts.notoSansLao(fontSize: 13, color: AppColors.textSecondary)),
+              const SizedBox(height: AppSpacing.md),
+              Row(
+                children: [
+                  Icon(
+                    _apiOk == true ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                    size: 20,
+                    color: _apiOk == true ? AppColors.success : AppColors.error,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _apiOk == null ? 'ກຳລັງກວດສອບ...' : (_apiOk! ? 'ເຊື່ອມຕໍ່ສຳເລັດ' : 'ເຊື່ອມຕໍ່ບໍ່ໄດ້'),
+                    style: GoogleFonts.notoSansLao(fontWeight: FontWeight.w600),
+                  ),
+                  const Spacer(),
+                  TextButton(onPressed: _ping, child: const Text('ກວດຄືນ')),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _InfoCard(
+          title: 'ວິທີໃຊ້ງານ',
+          child: Column(
+            children: [
+              _StepRow(number: '1', text: 'ເລືອກສິນຄ້າ ແລະ ເພີ່ມໃສ່ກະເປົາ'),
+              _StepRow(number: '2', text: 'ຊຳລະເງິນ — ບໍ່ຕ້ອງເຂົ້າສູ່ລະບົບ'),
+              _StepRow(number: '3', text: 'ຕິດຕາມຄຳສັ່ງຊື້ດ້ວຍເບີໂທ'),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.title, required this.child});
+
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
+        boxShadow: AppColors.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: GoogleFonts.notoSansLao(fontSize: 15, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpacing.md),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({required this.number, required this.text});
+
+  final String number;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Text(number, style: GoogleFonts.notoSansLao(fontWeight: FontWeight.w700, color: AppColors.primary)),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(child: Text(text, style: GoogleFonts.notoSansLao(fontSize: 14, height: 1.4))),
+        ],
+      ),
     );
   }
 }
