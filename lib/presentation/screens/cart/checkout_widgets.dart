@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/checkout_layout.dart';
 import '../../../core/utils/lak_currency_formatter.dart';
 import '../../../domain/entities/cart_item_entity.dart';
 import '../../../domain/entities/shipping_quote_entity.dart';
@@ -27,43 +28,75 @@ class CheckoutStepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).height < 700;
+    final dotSize = compact ? 34.0 : 40.0;
+    final labelWidth = compact ? 64.0 : 72.0;
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(
+        vertical: compact ? AppSpacing.md : AppSpacing.lg,
+        horizontal: AppSpacing.md,
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surfaceMuted,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (var i = 0; i < _steps.length; i++) ...[
-            if (i > 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: currentStep > i ? AppColors.primary : AppColors.textMuted,
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < _steps.length; i++) ...[
+                    if (i > 0)
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          size: compact ? 18 : 20,
+                          color: currentStep > i ? AppColors.primary : AppColors.textMuted,
+                        ),
+                      ),
+                    _StepDot(
+                      step: _steps[i],
+                      active: currentStep >= _steps[i].id,
+                      completed: currentStep > _steps[i].id,
+                      dotSize: dotSize,
+                      labelWidth: labelWidth,
+                      compact: compact,
+                    ),
+                  ],
+                ],
               ),
-            _StepDot(
-              step: _steps[i],
-              active: currentStep >= _steps[i].id,
-              completed: currentStep > _steps[i].id,
             ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }
 }
 
 class _StepDot extends StatelessWidget {
-  const _StepDot({required this.step, required this.active, required this.completed});
+  const _StepDot({
+    required this.step,
+    required this.active,
+    required this.completed,
+    required this.dotSize,
+    required this.labelWidth,
+    required this.compact,
+  });
 
   final ({int id, String label, IconData icon}) step;
   final bool active;
   final bool completed;
+  final double dotSize;
+  final double labelWidth;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -72,26 +105,32 @@ class _StepDot extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 40,
-          height: 40,
+          width: dotSize,
+          height: dotSize,
           decoration: BoxDecoration(
             color: active ? AppColors.primary : AppColors.border,
             shape: BoxShape.circle,
           ),
           child: Icon(
             completed ? Icons.check_rounded : step.icon,
-            size: 20,
+            size: compact ? 18 : 20,
             color: active ? Colors.white : AppColors.textMuted,
           ),
         ),
         const SizedBox(height: 4),
         SizedBox(
-          width: 72,
+          width: labelWidth,
           child: Text(
             step.label,
             textAlign: TextAlign.center,
             maxLines: 2,
-            style: GoogleFonts.notoSansLao(fontSize: 10, fontWeight: FontWeight.w600, color: color, height: 1.2),
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.notoSansLao(
+              fontSize: compact ? 9 : 10,
+              fontWeight: FontWeight.w600,
+              color: color,
+              height: 1.2,
+            ),
           ),
         ),
       ],
@@ -108,6 +147,8 @@ class OrderSummaryCard extends StatelessWidget {
     required this.totalLak,
     this.quote,
     this.quoteLoading = false,
+    this.showLineItems = true,
+    this.compact = false,
   });
 
   final List<CartItemEntity> items;
@@ -116,14 +157,17 @@ class OrderSummaryCard extends StatelessWidget {
   final double totalLak;
   final ShippingQuoteEntity? quote;
   final bool quoteLoading;
+  final bool showLineItems;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final freeShipping = quote?.freeShippingApplied ?? shippingFeeLak == 0;
+    final cardPadding = compact ? AppSpacing.md : AppSpacing.lg;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      margin: EdgeInsets.only(bottom: compact ? AppSpacing.md : AppSpacing.lg),
+      padding: EdgeInsets.all(cardPadding),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
@@ -134,12 +178,18 @@ class OrderSummaryCard extends StatelessWidget {
         children: [
           Text(
             'ສະຫຼຸບຄຳສັ່ງຊື້',
-            style: GoogleFonts.notoSansLao(fontSize: 16, fontWeight: FontWeight.w800),
+            style: GoogleFonts.notoSansLao(
+              fontSize: compact ? 14 : 16,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          const SizedBox(height: AppSpacing.lg),
-          ...items.map(_SummaryLineItem.new),
-          const Divider(height: AppSpacing.xl),
-          _priceRow('ລວມສິນຄ້າ', formatLakWeb(subtotalLak)),
+          if (showLineItems && items.isNotEmpty) ...[
+            SizedBox(height: compact ? AppSpacing.md : AppSpacing.lg),
+            ...items.map(_SummaryLineItem.new),
+            Divider(height: compact ? AppSpacing.lg : AppSpacing.xl),
+          ] else
+            SizedBox(height: compact ? AppSpacing.sm : AppSpacing.md),
+          _priceRow('ລວມສິນຄ້າ', formatLakWeb(subtotalLak), compact: compact),
           const SizedBox(height: AppSpacing.sm),
           _priceRow(
             'ຄ່າຈັດສົ່ງ',
@@ -149,18 +199,28 @@ class OrderSummaryCard extends StatelessWidget {
                     ? 'ຟຣີ'
                     : formatLakWeb(shippingFeeLak),
             valueColor: freeShipping ? AppColors.primary : null,
+            compact: compact,
           ),
-          const Divider(height: AppSpacing.lg),
+          Divider(height: compact ? AppSpacing.md : AppSpacing.lg),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('ລວມທັງໝົດ', style: GoogleFonts.notoSansLao(fontSize: 16, fontWeight: FontWeight.w800)),
               Text(
-                formatLakWeb(totalLak),
+                'ລວມທັງໝົດ',
                 style: GoogleFonts.notoSansLao(
-                  fontSize: 18,
+                  fontSize: compact ? 14 : 16,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.primary,
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  formatLakWeb(totalLak),
+                  textAlign: TextAlign.end,
+                  style: GoogleFonts.notoSansLao(
+                    fontSize: compact ? 16 : 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primary,
+                  ),
                 ),
               ),
             ],
@@ -190,15 +250,22 @@ class OrderSummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _priceRow(String label, String value, {Color? valueColor}) {
+  Widget _priceRow(String label, String value, {Color? valueColor, bool compact = false}) {
+    final fontSize = compact ? 13.0 : 14.0;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: GoogleFonts.notoSansLao(fontSize: 14, color: AppColors.textSecondary)),
+        Flexible(
+          child: Text(
+            label,
+            style: GoogleFonts.notoSansLao(fontSize: fontSize, color: AppColors.textSecondary),
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
         Text(
           value,
           style: GoogleFonts.notoSansLao(
-            fontSize: 14,
+            fontSize: fontSize,
             fontWeight: FontWeight.w600,
             color: valueColor ?? AppColors.textPrimary,
           ),
@@ -419,6 +486,7 @@ class CheckoutNavButtons extends StatelessWidget {
     this.continueLabel = 'ດຳເນີນການຕໍ່',
     this.continueLoading = false,
     this.continueEnabled = true,
+    this.compact = false,
   });
 
   final bool showBack;
@@ -427,9 +495,11 @@ class CheckoutNavButtons extends StatelessWidget {
   final String continueLabel;
   final bool continueLoading;
   final bool continueEnabled;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final vPadding = compact ? 12.0 : 14.0;
     return Row(
       children: [
         if (showBack) ...[
@@ -437,7 +507,7 @@ class CheckoutNavButtons extends StatelessWidget {
             child: OutlinedButton(
               onPressed: continueLoading ? null : onBack,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: EdgeInsets.symmetric(vertical: vPadding),
                 side: const BorderSide(color: AppColors.border),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusMd)),
               ),
@@ -447,11 +517,10 @@ class CheckoutNavButtons extends StatelessWidget {
           const SizedBox(width: AppSpacing.md),
         ],
         Expanded(
-          flex: showBack ? 1 : 1,
           child: FilledButton(
             onPressed: continueLoading || !continueEnabled ? null : onContinue,
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: EdgeInsets.symmetric(vertical: vPadding),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSpacing.radiusMd)),
             ),
             child: continueLoading
@@ -462,8 +531,16 @@ class CheckoutNavButtons extends StatelessWidget {
                   )
                 : Row(
                     mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(continueLabel, style: GoogleFonts.notoSansLao(fontWeight: FontWeight.w700)),
+                      Flexible(
+                        child: Text(
+                          continueLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.notoSansLao(fontWeight: FontWeight.w700),
+                        ),
+                      ),
                       const SizedBox(width: 4),
                       const Icon(Icons.chevron_right_rounded, size: 20),
                     ],
@@ -471,6 +548,35 @@ class CheckoutNavButtons extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Sticky footer wrapper for checkout primary actions.
+class CheckoutBottomBar extends StatelessWidget {
+  const CheckoutBottomBar({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final padding = CheckoutLayout.pagePadding(context);
+    return Material(
+      color: AppColors.surface,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            padding.left,
+            AppSpacing.md,
+            padding.right,
+            AppSpacing.sm,
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }

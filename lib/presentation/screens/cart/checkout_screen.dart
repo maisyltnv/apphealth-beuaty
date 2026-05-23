@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/lao_provinces.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/checkout_layout.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/orders_provider.dart';
 import '../../widgets/product_image.dart';
@@ -187,8 +188,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final shippingFee = _shippingFeeLak(orders);
     final total = _totalLak(cart, orders);
 
+    final compact = CheckoutLayout.isCompactHeight(context);
+    final pagePadding = CheckoutLayout.pagePadding(context);
+
     return Scaffold(
       backgroundColor: AppColors.background,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('ຊຳລະເງິນ'),
         backgroundColor: AppColors.background,
@@ -198,33 +203,75 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           CheckoutStepIndicator(currentStep: _step),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: pagePadding.copyWith(
+                bottom: pagePadding.bottom + (compact ? 88 : 96),
+              ),
               children: [
-                OrderSummaryCard(
-                  items: cart.items,
-                  subtotalLak: subtotal,
-                  shippingFeeLak: shippingFee,
-                  totalLak: total,
-                  quote: quote,
-                  quoteLoading: _quoteLoading,
+                CheckoutLayout.constrainContent(
+                  context,
+                  OrderSummaryCard(
+                    items: cart.items,
+                    subtotalLak: subtotal,
+                    shippingFeeLak: shippingFee,
+                    totalLak: total,
+                    quote: quote,
+                    quoteLoading: _quoteLoading,
+                    showLineItems: _step == 3,
+                    compact: compact || _step < 3,
+                  ),
                 ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: switch (_step) {
-                    1 => _buildShippingStep(),
-                    2 => _buildPaymentStep(total),
-                    _ => _buildConfirmStep(cart),
-                  },
+                CheckoutLayout.constrainContent(
+                  context,
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: switch (_step) {
+                      1 => _buildShippingStep(compact),
+                      2 => _buildPaymentStep(total, compact),
+                      _ => _buildConfirmStep(cart, compact),
+                    },
+                  ),
                 ),
               ],
             ),
           ),
         ],
       ),
+      bottomNavigationBar: CheckoutBottomBar(child: _buildBottomNav(compact)),
     );
   }
 
-  Widget _buildShippingStep() {
+  Widget _buildBottomNav(bool compact) {
+    return CheckoutLayout.constrainContent(
+      context,
+      CheckoutNavButtons(
+        showBack: _step > 1,
+        compact: compact,
+        onBack: () => _goToStep(_step - 1),
+        onContinue: _onBottomContinue,
+        continueLabel: _step == 3 ? 'ຢືນຢັນຄຳສັ່ງຊື້' : 'ດຳເນີນການຕໍ່',
+        continueLoading: _busy && _step == 3,
+      ),
+    );
+  }
+
+  void _onBottomContinue() {
+    if (_step == 1) {
+      if (_validateShipping()) _goToStep(2);
+    } else if (_step == 2) {
+      if (_validateReceipt()) _goToStep(3);
+    } else if (_step == 3) {
+      _submit();
+    }
+  }
+
+  Widget _buildShippingStep(bool compact) {
+    final gap = CheckoutLayout.fieldGap(context);
+    final titleSize = CheckoutLayout.titleFontSize(context);
+    final inputPadding = compact
+        ? const EdgeInsets.symmetric(horizontal: 14, vertical: 12)
+        : null;
+
     return Form(
       key: _formKey,
       child: Column(
@@ -233,30 +280,38 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         children: [
           Text(
             'ທີ່ຢູ່ຈັດສົ່ງ',
-            style: GoogleFonts.notoSansLao(fontSize: 22, fontWeight: FontWeight.w800),
+            style: GoogleFonts.notoSansLao(fontSize: titleSize, fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: CheckoutLayout.sectionGap(context)),
           CheckoutLabeledField(
             icon: Icons.person_outline,
             label: 'ຊື່ຜູ້ຮັບ',
             child: TextFormField(
               controller: _name,
-              decoration: const InputDecoration(hintText: 'ປ້ອນຊື່ຂອງທ່ານ'),
+              decoration: InputDecoration(
+                hintText: 'ປ້ອນຊື່ຂອງທ່ານ',
+                contentPadding: inputPadding,
+                isDense: compact,
+              ),
               validator: _required,
             ),
           ),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: gap),
           CheckoutLabeledField(
             icon: Icons.phone_outlined,
             label: 'ເບີໂທລະສັບ',
             child: TextFormField(
               controller: _phone,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(hintText: '020 XXXX XXXX'),
+              decoration: InputDecoration(
+                hintText: '020 XXXX XXXX',
+                contentPadding: inputPadding,
+                isDense: compact,
+              ),
               validator: (v) => (v == null || v.trim().length < 8) ? 'ເບີໂທບໍ່ຖືກຕ້ອງ' : null,
             ),
           ),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: gap),
           CheckoutLabeledField(
             icon: Icons.location_on_outlined,
             label: 'ແຂວງ',
@@ -264,7 +319,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               key: ValueKey(_selectedProvince),
               initialValue: _selectedProvince,
               isExpanded: true,
-              decoration: const InputDecoration(hintText: 'ເລືອກແຂວງ'),
+              isDense: compact,
+              decoration: InputDecoration(
+                hintText: 'ເລືອກແຂວງ',
+                contentPadding: inputPadding,
+              ),
               items: LaoProvinces.all
                   .map((p) => DropdownMenuItem(value: p, child: Text(p, style: GoogleFonts.notoSansLao(fontSize: 14))))
                   .toList(),
@@ -272,40 +331,39 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               validator: (v) => (v == null || v.isEmpty) ? 'ກະລຸນາເລືອກແຂວງ' : null,
             ),
           ),
-          const SizedBox(height: AppSpacing.lg),
+          SizedBox(height: gap),
           CheckoutLabeledField(
             icon: Icons.location_on_outlined,
             label: 'ທີ່ຢູ່ລະອຽດ',
             child: TextFormField(
               controller: _address,
-              maxLines: 3,
-              decoration: const InputDecoration(hintText: 'ບ້ານ, ເມືອງ, ຈຸດສັງເກດ'),
+              maxLines: CheckoutLayout.addressMaxLines(context),
+              decoration: InputDecoration(
+                hintText: 'ບ້ານ, ເມືອງ, ຈຸດສັງເກດ',
+                contentPadding: inputPadding,
+                isDense: compact,
+              ),
               validator: _required,
             ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-          CheckoutNavButtons(
-            showBack: false,
-            onBack: () {},
-            onContinue: () {
-              if (_validateShipping()) _goToStep(2);
-            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildPaymentStep(double total) {
+  Widget _buildPaymentStep(double total, bool compact) {
+    final titleSize = CheckoutLayout.titleFontSize(context);
+    final qrSize = compact ? 140.0 : 180.0;
+
     return Column(
       key: const ValueKey('step_payment'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           'ເລືອກວິທີຊຳລະເງິນ',
-          style: GoogleFonts.notoSansLao(fontSize: 22, fontWeight: FontWeight.w800),
+          style: GoogleFonts.notoSansLao(fontSize: titleSize, fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        SizedBox(height: CheckoutLayout.sectionGap(context)),
         PaymentMethodTile(
           selected: _paymentMethod == 'bcel_qr',
           icon: Icons.qr_code_2_rounded,
@@ -342,8 +400,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Container(
-                  width: 180,
-                  height: 180,
+                  width: qrSize,
+                  height: qrSize,
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(AppSpacing.radiusLg),
@@ -376,27 +434,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             ),
           ),
         ],
-        const SizedBox(height: AppSpacing.xl),
-        CheckoutNavButtons(
-          onBack: () => _goToStep(1),
-          onContinue: () {
-            if (_validateReceipt()) _goToStep(3);
-          },
-        ),
       ],
     );
   }
 
-  Widget _buildConfirmStep(CartProvider cart) {
+  Widget _buildConfirmStep(CartProvider cart, bool compact) {
     return Column(
       key: const ValueKey('step_confirm'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           'ຢືນຢັນຄຳສັ່ງຊື້',
-          style: GoogleFonts.notoSansLao(fontSize: 22, fontWeight: FontWeight.w800),
+          style: GoogleFonts.notoSansLao(
+            fontSize: CheckoutLayout.titleFontSize(context),
+            fontWeight: FontWeight.w800,
+          ),
         ),
-        const SizedBox(height: AppSpacing.lg),
+        SizedBox(height: CheckoutLayout.sectionGap(context)),
         CheckoutReviewCard(
           title: 'ທີ່ຢູ່ຈັດສົ່ງ',
           onEdit: () => _goToStep(1),
@@ -487,13 +541,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ],
             ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        CheckoutNavButtons(
-          onBack: () => _goToStep(2),
-          onContinue: _submit,
-          continueLabel: 'ຢືນຢັນຄຳສັ່ງຊື້',
-          continueLoading: _busy,
         ),
       ],
     );
