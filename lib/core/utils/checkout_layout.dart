@@ -4,9 +4,9 @@ import '../theme/app_spacing.dart';
 
 /// Responsive sizing for checkout screens across phone sizes and tablets.
 abstract final class CheckoutLayout {
+  static const double maxContentWidth = 560;
   static const double _compactHeight = 700;
   static const double _tabletWidth = 600;
-  static const double _maxContentWidth = 560;
 
   static bool isCompactHeight(BuildContext context) =>
       MediaQuery.sizeOf(context).height < _compactHeight;
@@ -33,12 +33,29 @@ abstract final class CheckoutLayout {
   static int addressMaxLines(BuildContext context) =>
       isCompactHeight(context) ? 2 : 3;
 
-  static Widget constrainContent(BuildContext context, Widget child) {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _maxContentWidth),
-        child: child,
+  /// Scrollable checkout body — must not use [Center] (breaks inside [ListView]).
+  static Widget scrollBody(
+    BuildContext context, {
+    required List<Widget> children,
+    ScrollController? controller,
+  }) {
+    final padding = pagePadding(context);
+    return SingleChildScrollView(
+      controller: controller,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: padding,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: maxContentWidth),
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ),
+        ),
       ),
     );
   }

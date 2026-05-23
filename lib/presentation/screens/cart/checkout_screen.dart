@@ -28,6 +28,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _address = TextEditingController();
 
   int _step = 1;
+  final _scrollController = ScrollController();
   String? _selectedProvince;
   String _paymentMethod = 'bcel_qr';
   bool _busy = false;
@@ -53,6 +54,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _name.dispose();
     _phone.dispose();
     _address.dispose();
@@ -82,7 +84,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return true;
   }
 
-  void _goToStep(int step) => setState(() => _step = step);
+  void _goToStep(int step) {
+    setState(() => _step = step);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
 
   Future<void> _pickReceipt() async {
     final picked = await _imagePicker.pickImage(
@@ -189,7 +198,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final total = _totalLak(cart, orders);
 
     final compact = CheckoutLayout.isCompactHeight(context);
-    final pagePadding = CheckoutLayout.pagePadding(context);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -198,18 +206,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         title: const Text('ຊຳລະເງິນ'),
         backgroundColor: AppColors.background,
       ),
-      body: Column(
-        children: [
-          CheckoutStepIndicator(currentStep: _step),
-          Expanded(
-            child: ListView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              padding: pagePadding.copyWith(
-                bottom: pagePadding.bottom + (compact ? 88 : 96),
-              ),
-              children: [
-                CheckoutLayout.constrainContent(
-                  context,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            CheckoutStepIndicator(currentStep: _step),
+            Expanded(
+              child: CheckoutLayout.scrollBody(
+                context,
+                controller: _scrollController,
+                children: [
                   OrderSummaryCard(
                     items: cart.items,
                     subtotalLak: subtotal,
@@ -220,39 +226,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     showLineItems: _step == 3,
                     compact: compact || _step < 3,
                   ),
-                ),
-                CheckoutLayout.constrainContent(
-                  context,
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: switch (_step) {
-                      1 => _buildShippingStep(compact),
-                      2 => _buildPaymentStep(total, compact),
-                      _ => _buildConfirmStep(cart, compact),
-                    },
-                  ),
-                ),
-              ],
+                  const SizedBox(height: AppSpacing.md),
+                  _buildCurrentStep(cart, total, compact),
+                ],
+              ),
             ),
-          ),
-        ],
+            CheckoutBottomBar(child: _buildBottomNav(compact)),
+          ],
+        ),
       ),
-      bottomNavigationBar: CheckoutBottomBar(child: _buildBottomNav(compact)),
     );
   }
 
   Widget _buildBottomNav(bool compact) {
-    return CheckoutLayout.constrainContent(
-      context,
-      CheckoutNavButtons(
-        showBack: _step > 1,
-        compact: compact,
-        onBack: () => _goToStep(_step - 1),
-        onContinue: _onBottomContinue,
-        continueLabel: _step == 3 ? 'ຢືນຢັນຄຳສັ່ງຊື້' : 'ດຳເນີນການຕໍ່',
-        continueLoading: _busy && _step == 3,
-      ),
+    return CheckoutNavButtons(
+      showBack: _step > 1,
+      compact: compact,
+      onBack: () => _goToStep(_step - 1),
+      onContinue: _onBottomContinue,
+      continueLabel: _step == 3 ? 'ຢືນຢັນຄຳສັ່ງຊື້' : 'ດຳເນີນການຕໍ່',
+      continueLoading: _busy && _step == 3,
     );
+  }
+
+  Widget _buildCurrentStep(CartProvider cart, double total, bool compact) {
+    return switch (_step) {
+      1 => _buildShippingStep(compact),
+      2 => _buildPaymentStep(total, compact),
+      _ => _buildConfirmStep(cart, compact),
+    };
   }
 
   void _onBottomContinue() {
@@ -277,6 +279,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: Column(
         key: const ValueKey('step_shipping'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'ທີ່ຢູ່ຈັດສົ່ງ',
@@ -358,6 +361,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Column(
       key: const ValueKey('step_payment'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'ເລືອກວິທີຊຳລະເງິນ',
@@ -442,6 +446,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Column(
       key: const ValueKey('step_confirm'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'ຢືນຢັນຄຳສັ່ງຊື້',

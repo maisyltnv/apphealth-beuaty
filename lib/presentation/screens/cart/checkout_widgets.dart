@@ -552,7 +552,7 @@ class CheckoutNavButtons extends StatelessWidget {
   }
 }
 
-/// Sticky footer wrapper for checkout primary actions.
+/// Sticky footer wrapper for checkout primary actions (place inside [Column] body).
 class CheckoutBottomBar extends StatelessWidget {
   const CheckoutBottomBar({super.key, required this.child});
 
@@ -565,16 +565,19 @@ class CheckoutBottomBar extends StatelessWidget {
       color: AppColors.surface,
       elevation: 8,
       shadowColor: Colors.black.withValues(alpha: 0.08),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            padding.left,
-            AppSpacing.md,
-            padding.right,
-            AppSpacing.sm,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          padding.left,
+          AppSpacing.md,
+          padding.right,
+          AppSpacing.md,
+        ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: CheckoutLayout.maxContentWidth),
+            child: SizedBox(width: double.infinity, child: child),
           ),
-          child: child,
         ),
       ),
     );
